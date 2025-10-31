@@ -25,8 +25,13 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_KEY:
     raise RuntimeError("❌ Please set GEMINI_API_KEY in .env file")
 genai.configure(api_key=GEMINI_KEY)
-GEMINI_MODEL = "gemini-2.5-flash-lite"
 
+# This is the cheapest model to test the pipeline
+# GEMINI_MODEL = "gemini-2.5-flash-lite"
+
+# This is the most powerful model to generate the best quality data
+GEMINI_MODEL = "gemini-2.5-pro"
+print(f"Using Gemini model: {GEMINI_MODEL}")
 # ====== Together AI 初始化 (用于生成 answer) ======
 TOGETHER_KEY = os.environ.get("TOGETHER_API_KEY")
 if not TOGETHER_KEY:
@@ -35,8 +40,13 @@ together_client = OpenAI(
     api_key=TOGETHER_KEY,
     base_url="https://api.together.xyz/v1"
 )
-LLAMA_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
 
+#This is the free model to test the pipeline
+# LLAMA_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+
+#This is the paid model to generate the best quality data
+LLAMA_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+print(f"Using Llama model: {LLAMA_MODEL}")
 
 # 这里把历史保留 question、answer 和 correction
 def _rounds_to_str(rounds: List[dict]) -> str:
@@ -55,7 +65,6 @@ def _rounds_to_str(rounds: List[dict]) -> str:
     return "\n".join(lines[-16:])  # 保留最近16条消息（约8轮对话）
 
 
-
 def _rounds_to_messages(rounds: List[dict]) -> List[Dict]:
     """将 rounds 转为 OpenAI 格式的消息列表（包含 question, answer, correction）"""
     messages = []
@@ -72,7 +81,6 @@ def _rounds_to_messages(rounds: List[dict]) -> List[Dict]:
     return messages[-16:]  # 保留最近16条消息
 
 
-
 @retry(wait=wait_exponential_jitter(initial=1, max=12), stop=stop_after_attempt(6))
 def generate_followup(history_str: str, q: str, a: str, c: str) -> str:
     """用 Gemini 生成追问"""
@@ -84,10 +92,8 @@ def generate_followup(history_str: str, q: str, a: str, c: str) -> str:
         generation_config={
             "temperature": 0.7,
             "top_p": 0.9,
-            "max_output_tokens": 150,
-            "response_mime_type": "application/json",
-        },
-        safety_settings=None,
+            "response_mime_type": "application/json"
+        }
     )
 
     txt = (resp.text or "").strip()
@@ -95,7 +101,6 @@ def generate_followup(history_str: str, q: str, a: str, c: str) -> str:
         txt = txt.strip("`")
         if "\n" in txt:
             txt = txt.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
-
     try:
         data = json.loads(txt)
     except json.JSONDecodeError:
@@ -106,7 +111,8 @@ def generate_followup(history_str: str, q: str, a: str, c: str) -> str:
 
     followup = (data.get("followup") or "").strip()
     if not followup:
-        raise ValueError("Empty followup")
+        # 如果返回空，生成一个通用追问而不是报错
+        raise ValueError(f"Empty followup from Gemini. Response text: {txt[:100]}")
     return followup
 
 @retry(wait=wait_exponential_jitter(initial=1, max=12), stop=stop_after_attempt(6))
@@ -143,10 +149,8 @@ def generate_correction(history_str: str, question: str, answer: str) -> str:
         generation_config={
             "temperature": 0.6,
             "top_p": 0.9,
-            "max_output_tokens": 300,  # 增加到300，允许详细的修正回答（2-4句话）
-            "response_mime_type": "application/json",
-        },
-        safety_settings=None,
+            "response_mime_type": "application/json"
+        }
     )
 
     txt = (resp.text or "").strip()
@@ -154,7 +158,6 @@ def generate_correction(history_str: str, question: str, answer: str) -> str:
         txt = txt.strip("`")
         if "\n" in txt:
             txt = txt.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
-
     try:
         data = json.loads(txt)
     except json.JSONDecodeError:
@@ -192,7 +195,8 @@ def main():
         with out_history.open("w", encoding="utf-8") as f_hist, \
              out_single.open("w", encoding="utf-8") as f_single:
             
-            for ex in tqdm(initial_data, desc=f"Round {round_num}"):
+            # 注：动态进度条需tqdm(desc, leave=True, dynamic_ncols=True)
+            for ex in tqdm(initial_data, desc=f"Round {round_num}", dynamic_ncols=True):
                 rid = ex.get("id", "")
                 rounds = ex.get("rounds", []) or []
                 
@@ -221,8 +225,11 @@ def main():
                     followup_c = generate_correction(full_hist_str, followup_q, followup_a)
                     
                 except Exception as e:
-                    print(f"⚠️  Error for {rid}: {type(e).__name__}: {str(e)[:100]}")
-                    print(f"   Using fallback responses...")
+                    import traceback
+                    print(f"\n⚠️  Error for {rid}: {type(e).__name__}")
+                    print(f"   Message: {str(e)[:200]}")
+                    print(f"   Traceback: {traceback.format_exc().split('File')[- 1][:200] if 'File' in traceback.format_exc() else 'N/A'}")
+                    print(f"   Using fallback responses...\n")
                     followup_q = "Could you provide more details?"
                     followup_a = "I need more context to answer properly."
                     followup_c = "Let me know what specific aspect you'd like me to clarify."

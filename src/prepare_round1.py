@@ -5,7 +5,7 @@ import json
 DATASET = "aligner/aligner-20K"
 OUT1 = Path("data/round1/round1_single_turn.jsonl")
 OUT2 = Path("data/round1/round1_history_seed.jsonl")
-N = 20  # 先取前5条测试，想取全部可改为 None
+N = 200  # 先取前5条测试，想取全部可改为 None
 
 def norm(ex):
     q = ex.get("question", "").strip()

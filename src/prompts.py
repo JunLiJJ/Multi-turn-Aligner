@@ -28,7 +28,7 @@ Return format: {{"followup": "<your_question>"}}"""
 # Step 2: Llama 生成回答 (Answer)
 # ========================================
 LLAMA_SYSTEM = """You are a helpful assistant. Provide detailed, comprehensive answers that:
-- length should no more than 500 characters
+- length should within 400 characters
 - Maintain consistency with the conversation history
 - Give practical and helpful information
 """
@@ -44,7 +44,7 @@ Given a conversation history, a question, and an initial answer from a model, yo
    - More complete and comprehensive
    - Better aligned with user expectations
    - More helpful and actionable
-   - length should no more than 500 characters
+   - length should within 400 characters
 
 The corrected answer should maintain the helpful tone while addressing any flaws in the original answer.
 
@@ -58,5 +58,5 @@ Current Question: {question}
 Initial Answer from Model: {answer}
 
 Task: Analyze the initial answer and provide a corrected, improved version that addresses any issues and better serves the user's needs.
-Make your correction length should no more than 500 characters.
+Make your correction length should within 400 characters.
 Return format: {{"correction": "<improved_answer>"}}"""
